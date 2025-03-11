@@ -187,7 +187,7 @@ export async function generateVideo(
       }
 
       // Wait before polling again (Adjust interval as needed)
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   } catch (error) {
     console.error("Error generating video:", error);
