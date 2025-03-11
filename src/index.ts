@@ -20,6 +20,12 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+app.post("/", async (req, res) => {
+  return res.status(200).json({
+    message: "All Ok!",
+  });
+});
+
 app.post("/generate-video", async (req, res) => {
   try {
     // Parse the request body
