@@ -155,7 +155,7 @@ function generateVideo(inputProps) {
                     return null;
                 }
                 // Wait before polling again (Adjust interval as needed)
-                yield new Promise((resolve) => setTimeout(resolve, 5000));
+                yield new Promise((resolve) => setTimeout(resolve, 1000));
             }
         }
         catch (error) {

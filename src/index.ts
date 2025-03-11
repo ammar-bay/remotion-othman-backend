@@ -90,7 +90,7 @@ app.post("/generate-video", async (req, res) => {
 
     // Generate the video
     const videoUrl = await generateVideo(videoArgs);
-    console.log("Video Generated Successfully");
+    console.log("Video Generated Successfully", videoUrl);
 
     return res.status(200).json({
       id: requestBody.id,
