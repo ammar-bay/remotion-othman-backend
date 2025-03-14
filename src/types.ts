@@ -8,6 +8,7 @@ export interface Clip {
   emoji?: string;
   audio_text?: string;
   seconds?: number;
+  zoom?: number;
 }
 
 export interface PostRequestBody {
@@ -16,7 +17,8 @@ export interface PostRequestBody {
   elevenlabs_voice_id: string;
   elevenlabs_stability: number;
   elevenlabs_similarity: number;
-  
+  speed?: number;
+
   music_url?: string; // Empty string if no music
   title_style?: number; // Preset of 5 styles (1-5)
   subtitle_style?: number; // Preset of 5 styles (1-5)
@@ -40,6 +42,7 @@ export interface ElevenLabsParams {
   elevenlabs_similarity: number;
   audio_text: string;
   lang_code: string;
+  speed?: number;
 }
 
 // Caption Schema
@@ -66,12 +69,13 @@ export const SceneSchema = z.object({
   // audio_text: z.string().url().optional(),
   captions: z.array(CaptionSchema).optional(),
   seconds: z.number().positive().optional(), // Ensure positive number if provided
+  zoom: z.number().optional(),
 });
 
 // GenerateVideoArgs Schema
 export const GenerateVideoArgsSchema = z
   .object({
-    // id: z.string(),
+    id: z.string(),
     // lang_code: z.string().min(2).max(5), // Ensure valid language code length
     music_url: z.string().url().optional(),
     title_style: z.number().optional(),

@@ -5,14 +5,23 @@ import {
   RenderMediaOnLambdaInput,
   RenderProgress,
 } from "@remotion/lambda/client";
+import { getSilentParts } from "@remotion/renderer";
 import { AssemblyAI } from "assemblyai";
+import dotenv from "dotenv";
 import { ElevenLabsClient } from "elevenlabs";
+import ffmpeg from "fluent-ffmpeg";
+import fs from "fs-extra";
+import { tmpdir } from "os";
+import path from "path";
 import { Readable } from "stream";
 import { CaptionType, ElevenLabsParams, GenerateVideoArgs } from "./types";
-import dotenv from "dotenv";
-import { buffer } from "stream/consumers";
 
 dotenv.config();
+
+const webhook: RenderMediaOnLambdaInput["webhook"] = {
+  url: process.env.REMOTION_WEBHOOK_URL || "",
+  secret: process.env.REMOTION_WEBHOOK_SECRET || null,
+};
 
 /**
  * Converts a Readable stream to a Buffer
@@ -26,6 +35,7 @@ export const generateElevenLabsAudio = async ({
   elevenlabs_similarity,
   audio_text,
   lang_code,
+  speed = 1,
 }: ElevenLabsParams): Promise<Buffer> => {
   try {
     const client = new ElevenLabsClient({
@@ -39,19 +49,22 @@ export const generateElevenLabsAudio = async ({
         text: audio_text,
         model_id: "eleven_multilingual_v2",
         // language_code: lang_code,
-        // voice_settings: {
-        //   stability: elevenlabs_stability,
-        //   similarity_boost: elevenlabs_similarity,
-        // },
+        voice_settings: {
+          stability: elevenlabs_stability,
+          similarity_boost: elevenlabs_similarity,
+          speed,
+        },
       }
     );
 
     console.log("Stream to Buffer");
-    // Convert the stream to a Buffer using the built-in method
-    const audioBuffer = await buffer(audioStream);
+
+    // trimSilence
+    const audioBuffer = await trimSilence(audioStream);
+
     return audioBuffer;
   } catch (error) {
-    console.error("Error generating ElevenLabs audio:");
+    console.error("Error generating ElevenLabs audio:", error);
     throw new Error("Failed to generate audio.");
   }
 };
@@ -141,11 +154,19 @@ export const transcribeAudio = async (
  */
 export async function generateVideo(
   inputProps: GenerateVideoArgs
-): Promise<string | null> {
+): Promise<boolean | null> {
   try {
     const composition = process.env.REMOTION_COMPOSITION_ID || "MyCompostion";
 
-    console.log(inputProps);
+    // console.log(inputProps);
+
+    const webhook: RenderMediaOnLambdaInput["webhook"] = {
+      url: process.env.REMOTION_WEBHOOK_URL || "",
+      secret: process.env.REMOTION_WEBHOOK_SECRET || null,
+      customData: {
+        video_id: inputProps.id,
+      },
+    };
 
     // Trigger video rendering on AWS Lambda
     const { bucketName, renderId } = await renderMediaOnLambda({
@@ -154,6 +175,7 @@ export async function generateVideo(
           .REMOTION_LAMBDA_REGION as RenderMediaOnLambdaInput["region"]) ||
         "us-east-1",
       composition,
+      webhook,
       serveUrl: process.env.REMOTION_SERVE_URL || "",
       inputProps,
       codec: "h264",
@@ -161,34 +183,36 @@ export async function generateVideo(
       outName: `${inputProps.id}.mp4`,
     });
 
+    return true;
+
     // console.log("Video rendering started");
     // console.log("Bucket name:", bucketName);
     // console.log("Render ID:", renderId);
 
     // Poll for progress
-    while (true) {
-      const progress = await getRenderProgressStatus(
-        bucketName,
-        renderId,
-        process.env.REMOTION_LAMBDA_FUNCTION_NAME || ""
-      );
-      console.log("Render progress:", progress.overallProgress * 100, "%");
-
-      if (progress.done) {
-        console.log("Rendering completed. Output file:", progress.outputFile);
-        return progress.outputFile || null;
-      }
-
-      if (progress.fatalErrorEncountered) {
-        console.error(
-          "Fatal error encountered during rendering. Stopping polling."
-        );
-        return null;
-      }
-
-      // Wait before polling again (Adjust interval as needed)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
+    //     while (true) {
+    //       const progress = await getRenderProgressStatus(
+    //         bucketName,
+    //         renderId,
+    //         process.env.REMOTION_LAMBDA_FUNCTION_NAME || ""
+    //       );
+    //       console.log("Render progress:", progress.overallProgress * 100, "%");
+    //
+    //       if (progress.done) {
+    //         console.log("Rendering completed. Output file:", progress.outputFile);
+    //         return progress.outputFile || null;
+    //       }
+    //
+    //       if (progress.fatalErrorEncountered) {
+    //         console.error(
+    //           "Fatal error encountered during rendering. Stopping polling."
+    //         );
+    //         return null;
+    //       }
+    //
+    //       // Wait before polling again (Adjust interval as needed)
+    //       await new Promise((resolve) => setTimeout(resolve, 1000));
+    //     }
   } catch (error) {
     console.error("Error generating video:", error);
     return null;
@@ -211,3 +235,65 @@ export async function getRenderProgressStatus(
   });
   return progress;
 }
+
+/**
+ * Trims silence from the beginning and end of an audio stream.
+ * @param {Readable} audioStream - The input audio stream.
+ * @returns {Promise<Readable>} - A readable stream of the trimmed audio.
+ */
+export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
+  // Create temporary file paths
+  const tempFile = path.join(tmpdir(), `input-${Date.now()}.mp3`);
+  const outputFile = path.join(tmpdir(), `output-${Date.now()}.mp3`);
+
+  // Save the stream to a temporary file
+  await new Promise((resolve, reject) => {
+    const writeStream = fs.createWriteStream(tempFile);
+    audioStream.pipe(writeStream);
+    audioStream.on("end", resolve);
+    audioStream.on("error", reject);
+  });
+
+  console.log("Audio saved, analyzing silence...");
+
+  // Analyze silence in the audio
+  const { silentParts, durationInSeconds } = await getSilentParts({
+    src: tempFile,
+    noiseThresholdInDecibels: -40,
+    minDurationInSeconds: 0.1,
+  });
+
+  // If no silence detected, return the original audio as a Buffer
+  if (silentParts.length === 0) {
+    console.log("No silence detected, returning original audio.");
+    const audioBuffer = await fs.readFile(tempFile);
+    await fs.remove(tempFile);
+    return audioBuffer;
+  }
+
+  // Get trim positions
+  const trimStart = silentParts[0].endInSeconds; // End of first silence
+  const trimEnd = silentParts[silentParts.length - 1].startInSeconds; // Start of last silence
+
+  console.log(`Trimming from ${trimStart}s to ${trimEnd}s`);
+
+  // Trim audio using ffmpeg
+  await new Promise((resolve, reject) => {
+    ffmpeg(tempFile)
+      .setStartTime(trimStart)
+      .setDuration(trimEnd - trimStart)
+      .output(outputFile)
+      .on("end", resolve)
+      .on("error", reject)
+      .run();
+  });
+
+  // Read and return the trimmed file as a Buffer
+  const audioBuffer = await fs.readFile(outputFile);
+
+  // Clean up temporary files
+  await fs.remove(tempFile);
+  await fs.remove(outputFile);
+
+  return audioBuffer;
+};

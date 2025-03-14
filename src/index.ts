@@ -57,6 +57,7 @@ app.post("/generate-video", async (req, res) => {
           elevenlabs_similarity: requestBody.elevenlabs_similarity,
           audio_text: scene.audio_text,
           lang_code: requestBody.lang_code,
+          speed: requestBody.speed,
         });
 
         console.log("Uploading to S3...");
@@ -90,7 +91,7 @@ app.post("/generate-video", async (req, res) => {
 
     // Generate the video
     const videoUrl = await generateVideo(videoArgs);
-    console.log("Video Generated Successfully", videoUrl);
+    console.log("Video Triggered Successfully", videoUrl);
 
     return res.status(200).json({
       id: requestBody.id,
@@ -102,6 +103,11 @@ app.post("/generate-video", async (req, res) => {
       message: "Internal Server Error",
     });
   }
+});
+
+app.post("/webhook", async (req, res) => {
+  console.log("WEBHOOK: ", req.body);
+  res.status(200).send("Webhook received");
 });
 
 const PORT = process.env.PORT || 8080;
