@@ -90,12 +90,17 @@ app.post("/generate-video", async (req, res) => {
     };
 
     // Generate the video
-    const videoUrl = await generateVideo(videoArgs);
-    console.log("Video Triggered Successfully", videoUrl);
+    const videoResult = await generateVideo(videoArgs);
+    
+    if (videoResult) {
+      console.log("Video Triggered Successfully");
+      return res.status(200).json({
+        message: "Video Triggered Successfully",
+      });
+    }
 
     return res.status(200).json({
-      id: requestBody.id,
-      video_url: videoUrl,
+      message: "There is some error generation video, try again later...",
     });
   } catch (error) {
     console.error("Error processing request:", error);
