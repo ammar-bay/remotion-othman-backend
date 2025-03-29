@@ -130,6 +130,8 @@ export const transcribeAudio = async (
 
     const transcript = await client.transcripts.transcribe({
       audio_url: audioUrl,
+      // language_code: "en_us",
+      language_detection: true
     });
 
     if (!transcript.words) return null;
