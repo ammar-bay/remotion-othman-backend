@@ -59,10 +59,20 @@ export const generateElevenLabsAudio = async ({
 
     console.log("Stream to Buffer");
 
-    // trimSilence
-    const audioBuffer = await trimSilence(audioStream);
+    // Convert the stream to a Buffer
 
-    return audioBuffer;
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of audioStream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+
+    return Buffer.concat(chunks);
+
+    // trimSilence
+    // const audioBuffer = await trimSilence(audioStream);
+    //
+    // return audioBuffer;
   } catch (error) {
     console.error("Error generating ElevenLabs audio:", error);
     throw new Error("Failed to generate audio.");
