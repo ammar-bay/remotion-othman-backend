@@ -59,10 +59,25 @@ export const generateElevenLabsAudio = async ({
 
     console.log("Stream to Buffer");
 
-    // trimSilence
-    const audioBuffer = await trimSilence(audioStream);
+    // convert stream to buffer
+    const chunks: Buffer[] = [];
 
-    return audioBuffer;
+    for await (const chunk of audioStream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+
+    const audioBuffer = Buffer.concat(chunks);
+
+    // trimSilence
+
+    try {
+      const trimmedBuffer = await trimSilence(audioBuffer);
+      return trimmedBuffer;
+    } catch (error) {
+      console.error("Error trimming silence:", error);
+      // If trimming fails, return the original audio buffer
+      return audioBuffer;
+    }
   } catch (error) {
     console.error("Error generating ElevenLabs audio:", error);
     throw new Error("Failed to generate audio.");
@@ -243,26 +258,22 @@ export async function getRenderProgressStatus(
  * @param {Readable} audioStream - The input audio stream.
  * @returns {Promise<Buffer>} - A Buffer of the trimmed audio.
  */
-export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
+export const trimSilence = async (audioBuffer: Buffer): Promise<Buffer> => {
+  const tempFile = path.join(
+    tmpdir(),
+    `input-${Date.now()}-${Math.random().toString(36).substring(2, 10)}.mp3`
+  );
+  const outputFile = path.join(
+    tmpdir(),
+    `output-${Date.now()}-${Math.random().toString(36).substring(2, 10)}.mp3`
+  );
   try {
-    const tempFile = path.join(
-      tmpdir(),
-      `input-${Date.now()}-${Math.random().toString(36).substring(2, 10)}.mp3`
-    );
-    const outputFile = path.join(
-      tmpdir(),
-      `output-${Date.now()}-${Math.random().toString(36).substring(2, 10)}.mp3`
-    );
+    // Save the buffer to a temporary file
+    await fs.writeFile(tempFile, audioBuffer);
 
-    // Save the stream to a temporary file
-    await new Promise((resolve, reject) => {
-      const writeStream = fs.createWriteStream(tempFile);
-      audioStream.pipe(writeStream);
-      audioStream.on("end", resolve);
-      audioStream.on("error", reject);
-    });
+    console.log("Audio saved to temporary file:", tempFile);
 
-    console.log("Audio saved, analyzing silence...");
+    console.log("Analyzing silence...");
 
     // Analyze silence in the audio
     const { silentParts, durationInSeconds } = await getSilentParts({
@@ -276,7 +287,6 @@ export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
     // If no silence detected, return the original audio as a Buffer
     if (silentParts.length === 0) {
       console.log("No silence detected, returning original audio.");
-      const audioBuffer = await fs.readFile(tempFile);
       await fs.remove(tempFile);
       return audioBuffer;
     }
@@ -300,7 +310,6 @@ export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
     // Ensure trimStart is never greater than trimEnd
     if (trimStart >= trimEnd) {
       console.warn("Invalid trim range, returning original audio.");
-      const audioBuffer = await fs.readFile(tempFile);
       await fs.remove(tempFile);
       return audioBuffer;
     }
@@ -321,20 +330,12 @@ export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
     // Read the trimmed file as a Buffer
     const trimmedBuffer = await fs.readFile(outputFile);
 
-    // Clean up temporary files
-    await fs.remove(tempFile);
-    await fs.remove(outputFile);
-
     return trimmedBuffer;
   } catch (error) {
     console.error("Error trimming silence:", error);
-    // Convert audioStream to buffer and return without trimming
-    const chunks: Buffer[] = [];
-
-    for await (const chunk of audioStream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-
-    return Buffer.concat(chunks);
+    throw new Error("Failed to trim silence.");
+  } finally {
+    await fs.remove(tempFile);
+    await fs.remove(outputFile);
   }
 };
