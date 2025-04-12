@@ -59,20 +59,10 @@ export const generateElevenLabsAudio = async ({
 
     console.log("Stream to Buffer");
 
-    // Convert the stream to a Buffer
-
-    const chunks: Buffer[] = [];
-
-    for await (const chunk of audioStream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-
-    return Buffer.concat(chunks);
-
     // trimSilence
-    // const audioBuffer = await trimSilence(audioStream);
-    //
-    // return audioBuffer;
+    const audioBuffer = await trimSilence(audioStream);
+
+    return audioBuffer;
   } catch (error) {
     console.error("Error generating ElevenLabs audio:", error);
     throw new Error("Failed to generate audio.");
@@ -257,11 +247,11 @@ export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
   try {
     const tempFile = path.join(
       tmpdir(),
-      `input-${Date.now()}-${Math.random()}.mp3`
+      `input-${Date.now()}-${Math.random().toString(36).substring(2, 10)}.mp3`
     );
     const outputFile = path.join(
       tmpdir(),
-      `output-${Date.now()}-${Math.random()}.mp3`
+      `output-${Date.now()}-${Math.random().toString(36).substring(2, 10)}.mp3`
     );
 
     // Save the stream to a temporary file
@@ -338,30 +328,13 @@ export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
     return trimmedBuffer;
   } catch (error) {
     console.error("Error trimming silence:", error);
-    // convert audioStream to buffer and return without trimming
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      audioStream
-        .on("data", (chunk) => {
-          chunks.push(chunk);
-        })
-        .on("end", () => {
-          const buffer = Buffer.concat(chunks);
-          resolve(buffer);
-        })
-        .on("error", (err) => {
-          console.error("Error reading audio stream:", err);
-          reject(err);
-        });
-    });
-    //     ///
-    //     const chunks: Buffer[] = [];
-    //
-    //     for await (const chunk of audioStream) {
-    //       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    //     }
-    //
-    //     return Buffer.concat(chunks);
-    //     ///
+    // Convert audioStream to buffer and return without trimming
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of audioStream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+
+    return Buffer.concat(chunks);
   }
 };
