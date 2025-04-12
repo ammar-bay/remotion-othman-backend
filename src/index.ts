@@ -57,7 +57,7 @@ app.post("/generate-video", async (req, res) => {
           elevenlabs_similarity: requestBody.elevenlabs_similarity,
           audio_text: scene.audio_text,
           lang_code: requestBody.lang_code,
-          speed: requestBody.speed,
+          elevenlabs_speed: requestBody.elevenlabs_speed,
         });
 
         console.log("Uploading to S3...");

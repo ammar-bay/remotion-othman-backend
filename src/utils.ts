@@ -35,7 +35,7 @@ export const generateElevenLabsAudio = async ({
   elevenlabs_similarity,
   audio_text,
   lang_code,
-  speed = 1,
+  elevenlabs_speed = 1,
 }: ElevenLabsParams): Promise<Buffer> => {
   try {
     const client = new ElevenLabsClient({
@@ -52,7 +52,7 @@ export const generateElevenLabsAudio = async ({
         voice_settings: {
           stability: elevenlabs_stability,
           similarity_boost: elevenlabs_similarity,
-          speed,
+          speed: elevenlabs_speed,
         },
       }
     );
@@ -131,7 +131,7 @@ export const transcribeAudio = async (
     const transcript = await client.transcripts.transcribe({
       audio_url: audioUrl,
       // language_code: "en_us",
-      language_detection: true
+      language_detection: true,
     });
 
     if (!transcript.words) return null;
@@ -244,79 +244,114 @@ export async function getRenderProgressStatus(
  * @returns {Promise<Buffer>} - A Buffer of the trimmed audio.
  */
 export const trimSilence = async (audioStream: Readable): Promise<Buffer> => {
-  const tempFile = path.join(tmpdir(), `input-${Date.now()}.mp3`);
-  const outputFile = path.join(tmpdir(), `output-${Date.now()}.mp3`);
+  try {
+    const tempFile = path.join(
+      tmpdir(),
+      `input-${Date.now()}-${Math.random()}.mp3`
+    );
+    const outputFile = path.join(
+      tmpdir(),
+      `output-${Date.now()}-${Math.random()}.mp3`
+    );
 
-  // Save the stream to a temporary file
-  await new Promise((resolve, reject) => {
-    const writeStream = fs.createWriteStream(tempFile);
-    audioStream.pipe(writeStream);
-    audioStream.on("end", resolve);
-    audioStream.on("error", reject);
-  });
+    // Save the stream to a temporary file
+    await new Promise((resolve, reject) => {
+      const writeStream = fs.createWriteStream(tempFile);
+      audioStream.pipe(writeStream);
+      audioStream.on("end", resolve);
+      audioStream.on("error", reject);
+    });
 
-  console.log("Audio saved, analyzing silence...");
+    console.log("Audio saved, analyzing silence...");
 
-  // Analyze silence in the audio
-  const { silentParts, durationInSeconds } = await getSilentParts({
-    src: tempFile,
-    noiseThresholdInDecibels: -40,
-    minDurationInSeconds: 0.1,
-  });
+    // Analyze silence in the audio
+    const { silentParts, durationInSeconds } = await getSilentParts({
+      src: tempFile,
+      noiseThresholdInDecibels: -40,
+      minDurationInSeconds: 0.1,
+    });
 
-  console.log("Silent Parts Detected:", silentParts);
+    console.log("Silent Parts Detected:", silentParts);
 
-  // If no silence detected, return the original audio as a Buffer
-  if (silentParts.length === 0) {
-    console.log("No silence detected, returning original audio.");
-    const audioBuffer = await fs.readFile(tempFile);
+    // If no silence detected, return the original audio as a Buffer
+    if (silentParts.length === 0) {
+      console.log("No silence detected, returning original audio.");
+      const audioBuffer = await fs.readFile(tempFile);
+      await fs.remove(tempFile);
+      return audioBuffer;
+    }
+
+    let trimStart = 0;
+    let trimEnd = durationInSeconds;
+
+    // If there's silence at the start, update trimStart
+    if (Math.floor(silentParts[0].startInSeconds) === 0) {
+      trimStart = silentParts[0].endInSeconds;
+    }
+
+    // If there's silence at the end, update trimEnd
+    const lastSilentPart = silentParts[silentParts.length - 1];
+    if (lastSilentPart.endInSeconds >= durationInSeconds - 0.1) {
+      trimEnd = lastSilentPart.startInSeconds;
+    }
+
+    console.log(`Final trim range: Start: ${trimStart}s, End: ${trimEnd}s`);
+
+    // Ensure trimStart is never greater than trimEnd
+    if (trimStart >= trimEnd) {
+      console.warn("Invalid trim range, returning original audio.");
+      const audioBuffer = await fs.readFile(tempFile);
+      await fs.remove(tempFile);
+      return audioBuffer;
+    }
+
+    // Trim audio using ffmpeg
+    await new Promise((resolve, reject) => {
+      ffmpeg(tempFile)
+        .setStartTime(trimStart)
+        .setDuration(trimEnd - trimStart)
+        .output(outputFile)
+        .on("end", resolve)
+        .on("error", reject)
+        .run();
+    });
+
+    console.log("Silence trimmed successfully!");
+
+    // Read the trimmed file as a Buffer
+    const trimmedBuffer = await fs.readFile(outputFile);
+
+    // Clean up temporary files
     await fs.remove(tempFile);
-    return audioBuffer;
+    await fs.remove(outputFile);
+
+    return trimmedBuffer;
+  } catch (error) {
+    console.error("Error trimming silence:", error);
+    // convert audioStream to buffer and return without trimming
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      audioStream
+        .on("data", (chunk) => {
+          chunks.push(chunk);
+        })
+        .on("end", () => {
+          const buffer = Buffer.concat(chunks);
+          resolve(buffer);
+        })
+        .on("error", (err) => {
+          console.error("Error reading audio stream:", err);
+          reject(err);
+        });
+    });
+    //     ///
+    //     const chunks: Buffer[] = [];
+    //
+    //     for await (const chunk of audioStream) {
+    //       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    //     }
+    //
+    //     return Buffer.concat(chunks);
+    //     ///
   }
-
-  let trimStart = 0;
-  let trimEnd = durationInSeconds;
-
-  // If there's silence at the start, update trimStart
-  if (Math.floor(silentParts[0].startInSeconds) === 0) {
-    trimStart = silentParts[0].endInSeconds;
-  }
-
-  // If there's silence at the end, update trimEnd
-  const lastSilentPart = silentParts[silentParts.length - 1];
-  if (lastSilentPart.endInSeconds >= durationInSeconds - 0.1) {
-    trimEnd = lastSilentPart.startInSeconds;
-  }
-
-  console.log(`Final trim range: Start: ${trimStart}s, End: ${trimEnd}s`);
-
-  // Ensure trimStart is never greater than trimEnd
-  if (trimStart >= trimEnd) {
-    console.warn("Invalid trim range, returning original audio.");
-    const audioBuffer = await fs.readFile(tempFile);
-    await fs.remove(tempFile);
-    return audioBuffer;
-  }
-
-  // Trim audio using ffmpeg
-  await new Promise((resolve, reject) => {
-    ffmpeg(tempFile)
-      .setStartTime(trimStart)
-      .setDuration(trimEnd - trimStart)
-      .output(outputFile)
-      .on("end", resolve)
-      .on("error", reject)
-      .run();
-  });
-
-  console.log("Silence trimmed successfully!");
-
-  // Read the trimmed file as a Buffer
-  const trimmedBuffer = await fs.readFile(outputFile);
-
-  // Clean up temporary files
-  await fs.remove(tempFile);
-  await fs.remove(outputFile);
-
-  return trimmedBuffer;
 };
