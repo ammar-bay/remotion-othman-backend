@@ -67,7 +67,10 @@ app.post("/generate-video", async (req, res) => {
         console.log(`Uploaded audio for scene: ${audioUrl}`);
 
         // Transcribe audio using AssemblyAI (or any transcription service)
-        const captions: CaptionType[] | null = await transcribeAudio(audioUrl);
+        const captions: CaptionType[] | null = await transcribeAudio(
+          audioUrl,
+          requestBody.lang_code
+        );
         console.log(
           `Generated captions for scene: ${JSON.stringify(captions)}`
         );

@@ -33,6 +33,7 @@ export interface PostRequestBody {
   subtitle_background_color?: string;
   title_text_color?: string;
   title_background_color?: string;
+  secondary_color?: string; // Optional secondary color
   clips: Clip[];
 }
 
@@ -91,6 +92,7 @@ export const GenerateVideoArgsSchema = z
     subtitle_background_color: z.string().optional(), // Could use regex for HEX color validation
     title_text_color: z.string().optional(), // Could use regex for HEX color validation
     title_background_color: z.string().optional(), // Could use regex for HEX color validation
+    secondary_color: z.string().optional(), // Could use regex for HEX color validation
     scenes: z.array(SceneSchema),
   })
   .passthrough(); // Allows additional properties

@@ -136,7 +136,8 @@ export const uploadToS3 = async (
  * @returns {Promise<string | null>} - The transcribed text or null if an error occurs.
  */
 export const transcribeAudio = async (
-  audioUrl: string
+  audioUrl: string,
+  lang_code: string
 ): Promise<CaptionType[] | null> => {
   try {
     const client = new AssemblyAI({
@@ -145,8 +146,9 @@ export const transcribeAudio = async (
 
     const transcript = await client.transcripts.transcribe({
       audio_url: audioUrl,
-      // language_code: "en_us",
-      language_detection: true,
+      language_code: lang_code,
+      speech_model: getLanguageValue(lang_code),
+      // language_detection: true,
     });
 
     if (!transcript.words) return null;
@@ -339,3 +341,30 @@ export const trimSilence = async (audioBuffer: Buffer): Promise<Buffer> => {
     await fs.remove(outputFile);
   }
 };
+
+const langMap: Record<string, "best"> = {
+  en: "best",
+  en_au: "best",
+  en_uk: "best",
+  en_us: "best",
+  es: "best",
+  fr: "best",
+  de: "best",
+  it: "best",
+  pt: "best",
+  nl: "best",
+  hi: "best",
+  ja: "best",
+  zh: "best",
+  fi: "best",
+  ko: "best",
+  pl: "best",
+  ru: "best",
+  tr: "best",
+  uk: "best",
+  vi: "best",
+};
+
+function getLanguageValue(langCode: string): "best" | "nano" {
+  return langMap[langCode] ?? "nano";
+}
