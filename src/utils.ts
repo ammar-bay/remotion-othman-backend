@@ -14,7 +14,8 @@ import fs from "fs-extra";
 import { tmpdir } from "os";
 import path from "path";
 import { Readable } from "stream";
-import { CaptionType, ElevenLabsParams, GenerateVideoArgs } from "./types";
+import { CaptionType, AudioParams, GenerateVideoArgs } from "./types";
+import OpenAI from "openai";
 
 dotenv.config();
 
@@ -29,45 +30,63 @@ const webhook: RenderMediaOnLambdaInput["webhook"] = {
  * @returns Promise<Buffer>
  */
 
-export const generateElevenLabsAudio = async ({
+export const generateAudio = async ({
   elevenlabs_voice_id,
   elevenlabs_stability,
   elevenlabs_similarity,
   audio_text,
   lang_code,
   elevenlabs_speed = 1,
-}: ElevenLabsParams): Promise<Buffer> => {
+  elevenlabs_style = 0,
+  elevenlabs_use_speaker_boost = false,
+}: AudioParams): Promise<Buffer> => {
   try {
-    const client = new ElevenLabsClient({
-      apiKey: process.env.ELEVENLABS_API_KEY,
-    });
+    let audioBuffer: Buffer;
 
-    const audioStream: Readable = await client.textToSpeech.convert(
-      elevenlabs_voice_id,
-      {
-        output_format: "mp3_44100_128",
-        text: audio_text,
-        model_id: "eleven_multilingual_v2",
-        // language_code: lang_code,
-        voice_settings: {
-          stability: elevenlabs_stability,
-          similarity_boost: elevenlabs_similarity,
-          speed: elevenlabs_speed,
-        },
+    if (lang_code === "he") {
+      const openai = new OpenAI();
+
+      const mp3 = await openai.audio.speech.create({
+        model: "gpt-4o-mini-tts",
+        voice: "coral",
+        input: audio_text,
+        instructions: "Speak in a cheerful and positive tone.",
+      });
+
+      audioBuffer = Buffer.from(await mp3.arrayBuffer());
+    } else {
+      const client = new ElevenLabsClient({
+        apiKey: process.env.ELEVENLABS_API_KEY,
+      });
+
+      const audioStream: Readable = await client.textToSpeech.convert(
+        elevenlabs_voice_id,
+        {
+          output_format: "mp3_44100_128",
+          text: audio_text,
+          model_id: "eleven_multilingual_v2",
+          // language_code: lang_code,
+          voice_settings: {
+            stability: elevenlabs_stability,
+            similarity_boost: elevenlabs_similarity,
+            speed: elevenlabs_speed,
+            use_speaker_boost: elevenlabs_use_speaker_boost,
+            style: elevenlabs_style
+          },
+        }
+      );
+
+      console.log("Stream to Buffer");
+
+      // convert stream to buffer
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of audioStream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
-    );
 
-    console.log("Stream to Buffer");
-
-    // convert stream to buffer
-    const chunks: Buffer[] = [];
-
-    for await (const chunk of audioStream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      audioBuffer = Buffer.concat(chunks);
     }
-
-    const audioBuffer = Buffer.concat(chunks);
-
     // trimSilence
 
     try {

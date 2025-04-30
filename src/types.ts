@@ -18,6 +18,8 @@ export interface PostRequestBody {
   elevenlabs_stability: number;
   elevenlabs_similarity: number;
   elevenlabs_speed?: number;
+  elevenlabs_style?: number;
+  elevenlabs_use_speaker_boost?: boolean;
 
   music_url?: string; // Empty string if no music
   title_style?: number; // Preset of 5 styles (1-5)
@@ -37,13 +39,15 @@ export interface PostRequestBody {
   clips: Clip[];
 }
 
-export interface ElevenLabsParams {
+export interface AudioParams {
   elevenlabs_voice_id: string;
   elevenlabs_stability: number;
   elevenlabs_similarity: number;
   audio_text: string;
   lang_code: string;
   elevenlabs_speed?: number;
+  elevenlabs_style?: number;
+  elevenlabs_use_speaker_boost?: boolean;
 }
 
 // Caption Schema

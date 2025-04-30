@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import {
-  generateElevenLabsAudio,
+  generateAudio,
   uploadToS3,
   transcribeAudio,
   generateVideo,
@@ -51,13 +51,15 @@ app.post("/generate-video", async (req, res) => {
         if (!scene.audio_text) return scene;
 
         // Generate audio using ElevenLabs
-        const audioBuffer = await generateElevenLabsAudio({
+        const audioBuffer = await generateAudio({
           elevenlabs_voice_id: requestBody.elevenlabs_voice_id,
           elevenlabs_stability: requestBody.elevenlabs_stability,
           elevenlabs_similarity: requestBody.elevenlabs_similarity,
           audio_text: scene.audio_text,
           lang_code: requestBody.lang_code,
           elevenlabs_speed: requestBody.elevenlabs_speed,
+          elevenlabs_style: requestBody.elevenlabs_style,
+          elevenlabs_use_speaker_boost: requestBody.elevenlabs_use_speaker_boost,
         });
 
         console.log("Uploading to S3...");
