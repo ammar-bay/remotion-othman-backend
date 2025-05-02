@@ -217,6 +217,8 @@ export async function generateVideo(
       serveUrl: process.env.REMOTION_SERVE_URL || "",
       inputProps,
       codec: "h264",
+      crf: 1,
+      imageFormat: "png",
       functionName: process.env.REMOTION_LAMBDA_FUNCTION_NAME || "",
       outName: `${inputProps.id}.mp4`,
     });
