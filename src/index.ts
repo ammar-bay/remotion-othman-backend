@@ -81,6 +81,8 @@ app.post("/generate-video", async (req, res) => {
         return {
           ...scene,
           audio_url: audioUrl,
+          tts_enabled: scene.tts_enabled || true,
+          random_sequence: scene.random_sequence || true,
           captions: captions || [],
         };
       })
