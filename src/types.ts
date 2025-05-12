@@ -10,6 +10,7 @@ export interface Clip {
   title?: string;
   emoji?: string;
   audio_text?: string;
+  audio_volume?: number; // Ensure volume is between 0 and 1
   seconds?: number;
   zoom?: number;
 }
