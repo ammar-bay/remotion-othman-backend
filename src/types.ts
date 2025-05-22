@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export interface Clip {
   video_url: string;
+  video_volume?: number; // Ensure volume is between 0 and 1
   sound_effect_url?: string;
   sound_effect_volume?: number; // Ensure volume is between 0 and 1
   tts_enabled?: boolean; // Flag to indicate if TTS is enabled
@@ -71,6 +72,7 @@ export const CaptionSchema = z
 export const SceneSchema = z.object({
   duration: z.number().optional(), // added in the calculate metadata // optional so that it does not requir a default value
   video_url: z.string().url(), // Ensure valid URL
+  video_volume: z.number().optional(), // Ensure volume is between 0 and 1
   sound_effect_url: z.string().url().optional(),
   sound_effect_volume: z.number().optional(), // Ensure volume is between 0 and 1
   subtitle_style: z.number().optional(),
