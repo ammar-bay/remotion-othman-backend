@@ -14,8 +14,14 @@ import fs from "fs-extra";
 import { tmpdir } from "os";
 import path from "path";
 import { Readable } from "stream";
-import { CaptionType, AudioParams, GenerateVideoArgs } from "./types";
+import {
+  CaptionType,
+  AudioParams,
+  GenerateVideoArgs,
+  PostRequestBody,
+} from "./types";
 import OpenAI from "openai";
+import axios from "axios";
 
 dotenv.config();
 
@@ -71,7 +77,7 @@ export const generateAudio = async ({
             similarity_boost: elevenlabs_similarity,
             speed: elevenlabs_speed,
             use_speaker_boost: elevenlabs_use_speaker_boost,
-            style: elevenlabs_style
+            style: elevenlabs_style,
           },
         }
       );
@@ -150,6 +156,84 @@ export const uploadToS3 = async (
 };
 
 /**
+ *  Uploads a video file to AWS S3 after cleaning its metadata using ffmpeg.
+ * @param {string} videoUrl - The URL of the video file to upload.
+ * @param {string} id - A unique identifier for the video.
+ * @returns {Promise<string>} - The S3 URL of the uploaded video file.
+ */
+export const uploadVideoToS3 = async (
+  videoUrl: string,
+  id: string
+): Promise<string> => {
+  try {
+    const bucketName = process.env.AWS_BUCKET_NAME as string;
+    if (!bucketName)
+      throw new Error(
+        "AWS_BUCKET_NAME is not defined in environment variables."
+      );
+
+    const fileName = `${id}_${Date.now()}.mp4`;
+    const tempInput = path.join(tmpdir(), `input-${id}.mp4`);
+    const tempOutput = path.join(tmpdir(), `output-${id}.mp4`);
+
+    // 1. Download video from Remotion outputUrl
+    const response = await axios.get(videoUrl, { responseType: "arraybuffer" });
+    fs.writeFileSync(tempInput, response.data);
+
+    // 2. Run ffmpeg to clean/spoof metadata
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(tempInput)
+        .outputOptions([
+          "-c copy",
+          "-metadata",
+          "encoder=Adobe Premiere Pro 23.0 (Windows)",
+          "-metadata",
+          "software=Adobe Premiere Pro",
+          "-metadata",
+          "comment=Edited with CapCut",
+          "-brand",
+          "mp42",
+        ])
+        .save(tempOutput)
+        .on("end", () => resolve())
+        .on("error", (err) => reject(err));
+    });
+
+    const finalBuffer = fs.readFileSync(tempOutput);
+
+    // 3. Upload to your own S3 bucket
+    const s3 = new S3Client({
+      region: process.env.AWS_S3_REGION || "us-east-1",
+      credentials: {
+        accessKeyId: process.env.AWS_S3_ACCESS_KEY_ID as string,
+        secretAccessKey: process.env.AWS_S3_SECRET_ACCESS_KEY as string,
+      },
+    });
+
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: fileName,
+      Body: finalBuffer,
+      ContentType: "video/mp4",
+    });
+
+    await s3.send(command);
+
+    const fileUrl = `https://${bucketName}.s3.amazonaws.com/${fileName}`;
+    console.log(`Video uploaded successfully: ${fileUrl}`);
+
+    // Cleanup tmp files
+    fs.unlinkSync(tempInput);
+    fs.unlinkSync(tempOutput);
+
+    return fileUrl;
+  } catch (error) {
+    console.error("Error uploading video to S3:", error);
+    throw new Error("Failed to upload video to S3.");
+  }
+};
+
+/**
  * Transcribes an audio file using AssemblyAI.
  * @param {string} audioUrl - The URL of the audio file to transcribe.
  * @returns {Promise<string | null>} - The transcribed text or null if an error occurs.
@@ -191,12 +275,13 @@ export const transcribeAudio = async (
  * @returns {Promise<string | null>} - The output file URL or null if failed.
  */
 export async function generateVideo(
-  inputProps: GenerateVideoArgs
+  inputProps: GenerateVideoArgs,
+  requestBody: PostRequestBody
 ): Promise<boolean | null> {
   try {
     const composition = process.env.REMOTION_COMPOSITION_ID || "MyCompostion";
 
-    // console.log(inputProps);
+    console.log(inputProps);
 
     const webhook: RenderMediaOnLambdaInput["webhook"] = {
       url: process.env.REMOTION_WEBHOOK_URL || "",
@@ -216,11 +301,14 @@ export async function generateVideo(
       webhook,
       serveUrl: process.env.REMOTION_SERVE_URL || "",
       inputProps,
-      codec: "h264",
-      crf: 1,
-      imageFormat: "png",
       functionName: process.env.REMOTION_LAMBDA_FUNCTION_NAME || "",
       outName: `${inputProps.id}.mp4`,
+      // quality
+      codec: requestBody.codec || "h264",
+      crf: requestBody.crf || 18,
+      imageFormat: "jpeg",
+      scale: requestBody.scale || 1,
+      jpegQuality: 80,
     });
 
     return true;

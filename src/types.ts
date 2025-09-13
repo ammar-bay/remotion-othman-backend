@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 export interface Clip {
-  video_url: string;
+  media_url: string;
+  media_type?: "image" | "video";
+  duration?: number; // in seconds, optional since it can be calculated for videos, mandatory for images and if whole video audio is used
   video_volume?: number; // Ensure volume is between 0 and 1
   sound_effect_url?: string;
   sound_effect_volume?: number; // Ensure volume is between 0 and 1
@@ -42,7 +44,17 @@ export interface PostRequestBody {
   title_text_color?: string;
   title_background_color?: string;
   secondary_color?: string; // Optional secondary color
+  audio_text?: string; // audio for whole video, audio_text here overrides audio_text in scenes if both are present
+  audio_url?: string; // to get the audio url of the whole video after generating it
+  captions?: CaptionType[]; // captions for whole video if audio_text for whole video is used
   clips: Clip[];
+
+  // output video configurations like size, compression, quality
+  scale?: number; // Scale factor for the output video (e.g., 1 for original size, 0.5 for half size) default is 1
+  fps?: number; // Frames per second for the output video (default is 30)
+  crf?: number; // Constant Rate Factor for video quality (lower is better quality, range 0-51) default is 18
+  image_format?: "jpeg" | "png"; // Image format for video frames (default is "jpeg")
+  codec?: "h264" | "h265" | "vp8" | "vp9" | "mp3" | "aac" | "wav" | "gif" | "prores"; // Video codec to use (default is "h264")
 }
 
 export interface AudioParams {
@@ -71,7 +83,8 @@ export const CaptionSchema = z
 // Scene Schema
 export const SceneSchema = z.object({
   duration: z.number().optional(), // added in the calculate metadata // optional so that it does not requir a default value
-  video_url: z.string().url(), // Ensure valid URL
+  media_url: z.string().url(), // Ensure valid URL
+  media_type: z.enum(["image", "video"]).default("video").optional(),
   video_volume: z.number().optional(), // Ensure volume is between 0 and 1
   sound_effect_url: z.string().url().optional(),
   sound_effect_volume: z.number().optional(), // Ensure volume is between 0 and 1
@@ -108,6 +121,8 @@ export const GenerateVideoArgsSchema = z
     title_background_color: z.string().optional(), // Could use regex for HEX color validation
     secondary_color: z.string().optional(), // Could use regex for HEX color validation
     scenes: z.array(SceneSchema),
+    audio_url: z.string().optional(), // audio for whole video, audio_text here overrides audio_text in scenes if both are present
+    captions: z.array(CaptionSchema).optional(), // captions for whole video if audio_text for whole video is used
   })
   .passthrough(); // Allows additional properties
 

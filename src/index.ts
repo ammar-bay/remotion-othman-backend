@@ -5,10 +5,12 @@ import {
   uploadToS3,
   transcribeAudio,
   generateVideo,
+  uploadVideoToS3,
 } from "./utils";
 import cors from "cors";
 import bodyParser from "body-parser";
 import { PostRequestBody, GenerateVideoArgs, Clip, CaptionType } from "./types";
+import axios from "axios";
 
 dotenv.config();
 
@@ -44,49 +46,95 @@ app.post("/generate-video", async (req, res) => {
 
     console.log("Starting Audio & Captions Generation!");
 
-    // Process all scenes concurrently
-    const updatedScenes = await Promise.all(
-      requestBody.clips.map(async (scene: Clip) => {
-        // Skip scenes without audio_text
-        if (!scene.audio_text) return scene;
+    let updatedScenes: Clip[] = [];
 
-        // Generate audio using ElevenLabs
-        const audioBuffer = await generateAudio({
-          elevenlabs_voice_id: requestBody.elevenlabs_voice_id,
-          elevenlabs_stability: requestBody.elevenlabs_stability,
-          elevenlabs_similarity: requestBody.elevenlabs_similarity,
-          audio_text: scene.audio_text,
-          lang_code: requestBody.lang_code,
-          elevenlabs_speed: requestBody.elevenlabs_speed,
-          elevenlabs_style: requestBody.elevenlabs_style,
-          elevenlabs_use_speaker_boost: requestBody.elevenlabs_use_speaker_boost,
-        });
+    if (requestBody.audio_text) {
+      // Generate audio using ElevenLabs for the whole video
+      const audioBuffer = await generateAudio({
+        elevenlabs_voice_id: requestBody.elevenlabs_voice_id,
+        elevenlabs_stability: requestBody.elevenlabs_stability,
+        elevenlabs_similarity: requestBody.elevenlabs_similarity,
+        audio_text: requestBody.audio_text,
+        lang_code: requestBody.lang_code,
+        elevenlabs_speed: requestBody.elevenlabs_speed,
+        elevenlabs_style: requestBody.elevenlabs_style,
+        elevenlabs_use_speaker_boost: requestBody.elevenlabs_use_speaker_boost,
+      });
 
-        console.log("Uploading to S3...");
+      console.log("Uploading full video audio to S3...");
 
-        // Upload audio to S3
-        const audioUrl = await uploadToS3(audioBuffer, requestBody.id);
-        console.log(`Uploaded audio for scene: ${audioUrl}`);
+      // Upload audio to S3
+      const audioUrl = await uploadToS3(audioBuffer, requestBody.id);
+      console.log(`Uploaded full video audio: ${audioUrl}`);
 
-        // Transcribe audio using AssemblyAI (or any transcription service)
-        const captions: CaptionType[] | null = await transcribeAudio(
-          audioUrl,
-          requestBody.lang_code
-        );
-        console.log(
-          `Generated captions for scene: ${JSON.stringify(captions)}`
-        );
+      // Transcribe audio using AssemblyAI (or any transcription service)
+      const captions: CaptionType[] | null = await transcribeAudio(
+        audioUrl,
+        requestBody.lang_code
+      );
+      console.log(
+        `Generated captions for full video: ${JSON.stringify(captions)}`
+      );
 
-        // Return updated scene with audio URL and captions
-        return {
-          ...scene,
-          audio_url: audioUrl,
-          tts_enabled: scene.tts_enabled || true,
-          random_sequence: scene.random_sequence || true,
-          captions: captions || [],
-        };
-      })
-    );
+      // Update the requestBody to include the audio_url for the whole video
+      requestBody.audio_url = audioUrl;
+      requestBody.captions = captions || [];
+
+      updatedScenes = requestBody.clips.map((scene: Clip) => ({
+        ...scene,
+        media_type: scene.media_type || "video",
+        audio_url: null, // No individual audio URL since full video audio is used
+        tts_enabled: scene.tts_enabled || true,
+        random_sequence: scene.random_sequence || true,
+        captions: null,
+      }));
+    } else {
+      // Process all scenes concurrently
+      updatedScenes = await Promise.all(
+        requestBody.clips.map(async (scene: Clip) => {
+          // Skip scenes without audio_text
+          if (!scene.audio_text) return scene;
+
+          // Generate audio using ElevenLabs
+          const audioBuffer = await generateAudio({
+            elevenlabs_voice_id: requestBody.elevenlabs_voice_id,
+            elevenlabs_stability: requestBody.elevenlabs_stability,
+            elevenlabs_similarity: requestBody.elevenlabs_similarity,
+            audio_text: scene.audio_text,
+            lang_code: requestBody.lang_code,
+            elevenlabs_speed: requestBody.elevenlabs_speed,
+            elevenlabs_style: requestBody.elevenlabs_style,
+            elevenlabs_use_speaker_boost:
+              requestBody.elevenlabs_use_speaker_boost,
+          });
+
+          console.log("Uploading to S3...");
+
+          // Upload audio to S3
+          const audioUrl = await uploadToS3(audioBuffer, requestBody.id);
+          console.log(`Uploaded audio for scene: ${audioUrl}`);
+
+          // Transcribe audio using AssemblyAI (or any transcription service)
+          const captions: CaptionType[] | null = await transcribeAudio(
+            audioUrl,
+            requestBody.lang_code
+          );
+          console.log(
+            `Generated captions for scene: ${JSON.stringify(captions)}`
+          );
+
+          // Return updated scene with audio URL and captions
+          return {
+            ...scene,
+            media_type: scene.media_type || "video",
+            audio_url: audioUrl,
+            tts_enabled: scene.tts_enabled || true,
+            random_sequence: scene.random_sequence || true,
+            captions: captions || [],
+          };
+        })
+      );
+    }
 
     console.log("Audio & Captions generated Successfully!");
 
@@ -97,7 +145,7 @@ app.post("/generate-video", async (req, res) => {
     };
 
     // Generate the video
-    const videoResult = await generateVideo(videoArgs);
+    const videoResult = await generateVideo(videoArgs, requestBody);
 
     if (videoResult) {
       console.log("Video Triggered Successfully");
@@ -118,6 +166,42 @@ app.post("/generate-video", async (req, res) => {
 });
 
 app.post("/webhook", async (req, res) => {
+  try {
+    const payload = req.body;
+
+    if (payload.type === "error") {
+      console.error("Error in video processing:", payload);
+      await axios.post(process.env.OUTPUT_SERVER_URL || "", payload);
+      res.status(200).send("Error in video processing");
+    }
+    console.log("WEBHOOK:", payload);
+
+    const videoUrl = payload.outputUrl;
+    const videoId = payload.customData?.video_id || "default_id";
+
+    // Process + upload cleaned video to your bucket
+    const finalUrl = await uploadVideoToS3(videoUrl, videoId);
+
+    // Send the new URL to your output server
+    await axios.post(process.env.OUTPUT_SERVER_URL || "", {
+      ...payload,
+      outputUrl: finalUrl, // Replace with cleaned video URL
+    });
+
+    res.status(200).send("Video processed and forwarded");
+  } catch (err) {
+    console.error("Error processing webhook:", err);
+    await axios.post(process.env.OUTPUT_SERVER_URL || "", {
+      type: "error",
+      message: "Error processing webhook from backend server",
+      details: err,
+    });
+
+    res.status(200).send("Error processing webhook");
+  }
+});
+
+app.post("/webhook-dev", async (req, res) => {
   console.log("WEBHOOK: ", req.body);
   res.status(200).send("Webhook received");
 });

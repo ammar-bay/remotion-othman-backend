@@ -1,0 +1,94 @@
+{
+  "id": "unique_video_id",
+  "title_style": 3,
+  "subtitle_style": 3,
+  "subtitlesonoff": true,
+  "title_y_position": 100,
+  "title_x_position": 0,
+  "subtitle_y_position": 300,
+  "subtitle_x_position": -50,
+  "title_size": 100,
+  "subtitle_size": 80,
+  "subtitle_text_color": "#fff",
+  "subtitle_background_color": "orange",
+  "title_text_color": "#000",
+  "title_background_color": "transparent",
+  "elevenlabs_similarity": 0.5,
+  "elevenlabs_stability": 0.5,
+  "elevenlabs_voice_id": "JBFqnCBsd6RMkjVDRZzb",
+  "audio_text": "Hey there, it Ammar Ibrahim, a Full Stack Engineer with expertise in Data Engineering, and Web Dev.",
+  "clips": [
+    {
+      "media_url": "https://picsum.photos/200/300",
+      "media_type": "image",
+      "duration": 10,
+      "title": "Ammar Ibrahim",
+      "audio_text": "Hello, my name is Ammar Ibrahim."
+    },
+    {
+      "media_url": "https://mfah-tv.s3.amazonaws.com/assets/football.mp4",
+      "title": "Football",
+      "duration": 5,
+      "audio_text": "I love playing football!"
+    },
+    {
+      "media_url": "https://mfah-tv.s3.amazonaws.com/assets/football.mp4",
+      "title": "Football",
+      "duration": 5,
+      "audio_text": "My favourite player is Ronaldo!"
+    }
+  ],
+  "audio_url": "https://remotion-prod-audios.s3.amazonaws.com/unique_video_id_1757787448202.mp3",
+  "captions": [
+    { "text": "Id", "start": 135, "end": 247 },
+    { "text": "am", "start": 271, "end": 479 },
+    { "text": "ibrahim,", "start": 527, "end": 1071 },
+    { "text": "a", "start": 1143, "end": 1327 },
+    { "text": "full", "start": 1351, "end": 1559 },
+    { "text": "stack", "start": 1607, "end": 1815 },
+    { "text": "engineer", "start": 1855, "end": 2343 },
+    { "text": "with", "start": 2399, "end": 2663 },
+    { "text": "expertise", "start": 2719, "end": 3119 },
+    { "text": "in", "start": 3167, "end": 3375 },
+    { "text": "data", "start": 3415, "end": 3639 },
+    { "text": "engineering", "start": 3687, "end": 4447 },
+    { "text": "and", "start": 4551, "end": 4815 },
+    { "text": "webd", "start": 4855, "end": 5103 },
+    { "text": "devv.", "start": 5119, "end": 5175 }
+  ],
+  "scenes": [
+    {
+      "media_url": "https://picsum.photos/200/300",
+      "media_type": "image",
+      "duration": 10,
+      "title": "Ammar Ibrahim",
+      "audio_text": "Hello, my name is Ammar Ibrahim.",
+      "audio_url": null,
+      "tts_enabled": true,
+      "random_sequence": true,
+      "captions": null
+    },
+    {
+      "media_url": "https://mfah-tv.s3.amazonaws.com/assets/football.mp4",
+      "title": "Football",
+      "duration": 5,
+      "audio_text": "I love playing football!",
+      "media_type": "video",
+      "audio_url": null,
+      "tts_enabled": true,
+      "random_sequence": true,
+      "captions": null
+    },
+    {
+      "media_url": "https://mfah-tv.s3.amazonaws.com/assets/football.mp4",
+      "title": "Football",
+      "duration": 5,
+      "audio_text": "My favourite player is Ronaldo!",
+      "media_type": "video",
+      "audio_url": null,
+      "tts_enabled": true,
+      "random_sequence": true,
+      "captions": null
+    }
+  ]
+}
