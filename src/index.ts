@@ -172,7 +172,7 @@ app.post("/webhook", async (req, res) => {
     if (payload.type === "error") {
       console.error("Error in video processing:", payload);
       await axios.post(process.env.OUTPUT_SERVER_URL || "", payload);
-      res.status(200).send("Error in video processing");
+      return res.status(200).send("Error in video processing");
     }
     console.log("WEBHOOK:", payload);
 
@@ -202,7 +202,7 @@ app.post("/webhook", async (req, res) => {
 });
 
 app.post("/webhook-dev", async (req, res) => {
-  console.log("WEBHOOK: ", req.body);
+  console.log("DEV WEBHOOK: ", req.body);
   res.status(200).send("Webhook received");
 });
 
