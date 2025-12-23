@@ -106,6 +106,7 @@ app.post("/generate-video", async (req, res) => {
             elevenlabs_style: requestBody.elevenlabs_style,
             elevenlabs_use_speaker_boost:
               requestBody.elevenlabs_use_speaker_boost,
+            elevenlabs_model_id: requestBody.elevenlabs_model_id,
           });
 
           console.log("Uploading to S3...");

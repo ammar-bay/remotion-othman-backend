@@ -45,6 +45,7 @@ export const generateAudio = async ({
   elevenlabs_speed = 1,
   elevenlabs_style = 0,
   elevenlabs_use_speaker_boost = false,
+  elevenlabs_model_id = "eleven_multilingual_v2",
 }: AudioParams): Promise<Buffer> => {
   try {
     let audioBuffer: Buffer;
@@ -70,7 +71,7 @@ export const generateAudio = async ({
         {
           output_format: "mp3_44100_128",
           text: audio_text,
-          model_id: "eleven_multilingual_v2",
+          model_id: elevenlabs_model_id || "eleven_multilingual_v2",
           // language_code: lang_code,
           voice_settings: {
             stability: elevenlabs_stability,

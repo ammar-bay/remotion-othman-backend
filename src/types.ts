@@ -26,6 +26,7 @@ export interface PostRequestBody {
   elevenlabs_speed?: number;
   elevenlabs_style?: number;
   elevenlabs_use_speaker_boost?: boolean;
+  elevenlabs_model_id?: string;
   audio_volume?: number; // Ensure volume is between 0 and 1
 
   music_url?: string; // Empty string if no music
@@ -66,6 +67,7 @@ export interface AudioParams {
   elevenlabs_speed?: number;
   elevenlabs_style?: number;
   elevenlabs_use_speaker_boost?: boolean;
+  elevenlabs_model_id?: string;
 }
 
 // Caption Schema
