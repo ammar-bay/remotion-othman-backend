@@ -49,6 +49,7 @@ export interface PostRequestBody {
   audio_url?: string; // to get the audio url of the whole video after generating it
   captions?: CaptionType[]; // captions for whole video if audio_text for whole video is used
   clips: Clip[];
+  layout?: "vertical" | "horizontal";
 
   // output video configurations like size, compression, quality
   scale?: number; // Scale factor for the output video (e.g., 1 for original size, 0.5 for half size) default is 1
@@ -125,6 +126,7 @@ export const GenerateVideoArgsSchema = z
     scenes: z.array(SceneSchema),
     audio_url: z.string().optional(), // audio for whole video, audio_text here overrides audio_text in scenes if both are present
     captions: z.array(CaptionSchema).optional(), // captions for whole video if audio_text for whole video is used
+    layout: z.enum(["vertical", "horizontal"]).optional(),
   })
   .passthrough(); // Allows additional properties
 
