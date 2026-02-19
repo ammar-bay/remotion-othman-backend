@@ -1,0 +1,1 @@
+ssh -i "remotion-ec2.pem" ubuntu@ec2-3-87-68-62.compute-1.amazonaws.com
